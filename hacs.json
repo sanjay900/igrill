@@ -1,5 +1,5 @@
 {
-    "name": "Solutions300 Panel",
+    "name": "Weber iGrill",
     "domains": ["sensor"],
     "iot_class": "local_polling",
     "render_readme": true
