@@ -21,7 +21,7 @@ from homeassistant.data_entry_flow import FlowResult
 from .const import DOMAIN, CONF_SENSORTYPE, DEVICE_TYPES
 
 
-class igrillFlowHandler(ConfigFlow, domain=DOMAIN):
+class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
     """Config flow for igrill."""
 
     VERSION = 1
@@ -39,7 +39,7 @@ class igrillFlowHandler(ConfigFlow, domain=DOMAIN):
                 sensortype = user_input[CONF_SENSORTYPE]
                 mac = user_input[CONF_MAC]
                 device = DEVICE_TYPES[sensortype](mac)
-                await asyncio.get_event_loop().run_in_executor(None, IDevicePeripheral.read_battery, device)
+                await device.update()
             except BleakError as e:
                 print(e)
                 errors["base"] = " ".join(str(r) for r in e.args)
