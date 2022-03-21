@@ -145,10 +145,3 @@ class Pulse2000Peripheral(IDevicePeripheral):
 
     def __init__(self, address, name='Pulse 2000', num_probes=4):
         IDevicePeripheral.__init__(self, address, name, num_probes, has_heating_element=True)
-
-if __name__ == "__main__":
-    async def main():
-        igrill = IGrillV2Peripheral("70:91:8F:0E:45:9C")
-        print(await igrill.read_battery())
-        print(igrill.read_temperature())
-    asyncio.run(main())
