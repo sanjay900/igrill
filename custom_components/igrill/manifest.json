@@ -1,0 +1,10 @@
+{
+  "domain": "igrill",
+  "name": "weber igrill",
+  "config_flow": true,
+  "documentation": "",
+  "requirements": ["bleak==0.14.2"],
+  "codeowners": [],
+  "version": "v1.0.0",
+  "iot_class": "local_polling"
+}
