@@ -73,7 +73,6 @@ class IGrillSensor(CoordinatorEntity, Entity):
         self._device = device
         self._sensortype = sensortype
         self._attr_device_info = DeviceInfo(
-            entry_type=DeviceEntryType.SERVICE,
             identifiers={(DOMAIN, mac)},
             manufacturer="Weber",
             model=device.name,
