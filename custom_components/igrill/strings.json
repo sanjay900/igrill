@@ -1,0 +1,14 @@
+{
+    "config": {
+      "step": {
+        "user": {
+          "description": "Set up a Weber iGrill sensor to integrate with Home Assistant.",
+          "data": {
+            "mac": "MAC Address"
+          }
+        }
+      },
+      "error": {}
+    }
+  }
+  

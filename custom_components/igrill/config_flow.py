@@ -18,7 +18,7 @@ from homeassistant.const import (
 )
 from homeassistant.data_entry_flow import FlowResult
 
-from .const import DOMAIN, CONF_SENSORTYPE, DEVICE_TYPES
+from .const import DOMAIN, CONF_SENSORTYPE, DEVICE_TYPES, SensorType
 
 
 class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
@@ -35,19 +35,21 @@ class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
+            name = user_input[CONF_MAC]
             try:
-                sensortype = user_input[CONF_SENSORTYPE]
+                sensortype = user_input[CONF_SENSORTYPE].value
                 mac = user_input[CONF_MAC]
                 device = DEVICE_TYPES[sensortype](mac)
                 await device.update()
+                name = device.name
             except BleakError as e:
                 print(e)
                 errors["base"] = " ".join(str(r) for r in e.args)
             else:
                 return self.async_create_entry(
-                    title=user_input[CONF_NAME],
+                    title=name,
                     data={
-                        CONF_SENSORTYPE: user_input[CONF_SENSORTYPE],
+                        CONF_SENSORTYPE: user_input[CONF_SENSORTYPE].value,
                         CONF_MAC: user_input[CONF_MAC],
                     },
                 )
@@ -56,9 +58,8 @@ class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_NAME): str,
                     vol.Required(CONF_MAC): str,
-                    vol.Required(CONF_SENSORTYPE): ["igrill_mini","igrill_v2","igrill_v3","pulse_2000"]
+                    vol.Required(CONF_SENSORTYPE): vol.Coerce(SensorType),
                 }
             ),
             errors=errors,

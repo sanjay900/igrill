@@ -1,10 +1,9 @@
 {
   "domain": "igrill",
-  "name": "weber igrill",
+  "name": "Weber iGrill",
   "config_flow": true,
-  "documentation": "",
+  "documentation": "https://github.com/sanjay900/igrill",
   "requirements": ["bleak==0.14.2"],
   "codeowners": [],
-  "version": "v1.0.0",
   "iot_class": "local_polling"
 }

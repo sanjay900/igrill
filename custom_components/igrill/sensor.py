@@ -26,48 +26,58 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up Solutions3000 sensors based on a config entry."""
     sensor: IDevicePeripheral = hass.data[DOMAIN][entry.entry_id].data
-    sensortype = entry.data(CONF_SENSORTYPE)
-    mac = entry.data(CONF_MAC)
-    async_add_entities(
+    sensortype = entry.data[CONF_SENSORTYPE]
+    mac = entry.data[CONF_MAC]
+    entities = [
         IGrillSensor(
             coordinator=hass.data[DOMAIN][entry.entry_id],
             entry_id=entry.entry_id,
+            device=sensor,
             sensortype=sensortype,
             mac=mac,
-            device=sensor,
             probe=probe,
-            battery=probe == -1
-
+            battery=False
         )
-        for probe in range(-1, sensor.num_probes)
+        for probe in range(1, sensor.num_probes+1)
+    ]
+    entities.append(IGrillSensor(
+        coordinator=hass.data[DOMAIN][entry.entry_id],
+        entry_id=entry.entry_id,
+        sensortype=sensortype,
+        mac=mac,
+        device=sensor,
+        probe=-1,
+        battery=True
+
+    ))
+    async_add_entities(
+        entities
     )
 
 
 class IGrillSensor(CoordinatorEntity, Entity):
-    """Representation of a SNMP sensor."""
+    """Representation of a iGrill sensor."""
 
     def __init__(self, coordinator: DataUpdateCoordinator, entry_id: str, device: IDevicePeripheral, sensortype, mac, probe, battery):
         """Initialize the sensor."""
         super().__init__(coordinator=coordinator)
         if battery:
-            self._name = "%s - Battery" % (device.name)
+            self._name = "Battery"
             self._unique_id = "%s_battery" % (mac)
         else:
-            self._name = "%s - Probe %d" % (device.name, probe)
+            self._name = "Probe %d" % (probe)
             self._unique_id = "%s_probe_%d" % (mac, probe)
-        self._state = None
         self._probe = probe
         self._battery = battery
         self._device = device
         self._sensortype = sensortype
         self._attr_device_info = DeviceInfo(
             entry_type=DeviceEntryType.SERVICE,
-            identifiers={(DOMAIN)},
+            identifiers={(DOMAIN, mac)},
             manufacturer="Weber",
             model=device.name,
-            name=self._name,
+            name=device.name,
         )
 
     @property
@@ -76,9 +86,20 @@ class IGrillSensor(CoordinatorEntity, Entity):
         return self._name
 
     @property
+    def icon(self):
+        """Icon of the entity."""
+        if self._battery:
+            return "mdi:battery"
+        else:
+            return "mdi:thermometer"
+
+    @property
     def state(self):
         """Return the state of the sensor."""
-        return self._state
+        if self._battery:
+            return self._device.read_battery()
+        else:
+            return self._device.read_temperature(self._probe)
 
     @property
     def unique_id(self):
@@ -91,10 +112,3 @@ class IGrillSensor(CoordinatorEntity, Entity):
             return "%"
         else:
             return "°C"
-
-    async def async_update(self):
-        """Get the latest data and updates the states."""
-        if self._battery:
-            self._state = self._device.read_battery()
-        else:
-            self._state = self._device.read_temperature()[self._probe]

@@ -10,7 +10,7 @@ from homeassistant.const import (
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .igrill import IDevicePeripheral
-from .const import DEVICE_TYPES, DOMAIN, LOGGER, SERVICE_IGRILL, SCAN_INTERVAL, CONF_SENSORTYPE
+from .const import DEVICE_TYPES, DOMAIN, LOGGER, SERVICE_IGRILL, SCAN_INTERVAL, CONF_SENSORTYPE, SensorType
 
 # List of platforms to support. There should be a matching .py file for each,
 # eg <cover.py> and <sensor.py>
@@ -18,8 +18,8 @@ PLATFORMS: list[str] = [Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    sensortype = entry.data(CONF_SENSORTYPE)
-    mac = entry.data(CONF_MAC)
+    sensortype = entry.data[CONF_SENSORTYPE]
+    mac = entry.data[CONF_MAC]
     sensor = DEVICE_TYPES[sensortype](mac)  
 
     igrill_update: DataUpdateCoordinator[IDevicePeripheral] = DataUpdateCoordinator(

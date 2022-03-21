@@ -3,37 +3,41 @@ from builtins import object
 import logging
 
 import asyncio
-from bleak import BleakClient
+from bleak import BleakClient, BleakError
 
 _LOGGER = logging.getLogger(__name__)
 
+
 class UUIDS(object):
-    FIRMWARE_VERSION   = "64ac0001-4a4b-4b58-9f37-94d3c52ffdf7"
+    FIRMWARE_VERSION = "64ac0001-4a4b-4b58-9f37-94d3c52ffdf7"
 
-    BATTERY_LEVEL      = "00002A19-0000-1000-8000-00805F9B34FB"
+    BATTERY_LEVEL = "00002A19-0000-1000-8000-00805F9B34FB"
 
-    APP_CHALLENGE      = "64AC0002-4A4B-4B58-9F37-94D3C52FFDF7"
-    DEVICE_CHALLENGE   = "64AC0003-4A4B-4B58-9F37-94D3C52FFDF7"
-    DEVICE_RESPONSE    = "64AC0004-4A4B-4B58-9F37-94D3C52FFDF7"
+    APP_CHALLENGE = "64AC0002-4A4B-4B58-9F37-94D3C52FFDF7"
+    DEVICE_CHALLENGE = "64AC0003-4A4B-4B58-9F37-94D3C52FFDF7"
+    DEVICE_RESPONSE = "64AC0004-4A4B-4B58-9F37-94D3C52FFDF7"
 
-    CONFIG             = "06ef0002-2e06-4b79-9e33-fce2c42805ec"
+    CONFIG = "06ef0002-2e06-4b79-9e33-fce2c42805ec"
     PROBE1_TEMPERATURE = "06ef0002-2e06-4b79-9e33-fce2c42805ec"
-    PROBE1_THRESHOLD   = "06ef0003-2e06-4b79-9e33-fce2c42805ec"
+    PROBE1_THRESHOLD = "06ef0003-2e06-4b79-9e33-fce2c42805ec"
     PROBE2_TEMPERATURE = "06ef0004-2e06-4b79-9e33-fce2c42805ec"
-    PROBE2_THRESHOLD   = "06ef0005-2e06-4b79-9e33-fce2c42805ec"
+    PROBE2_THRESHOLD = "06ef0005-2e06-4b79-9e33-fce2c42805ec"
     PROBE3_TEMPERATURE = "06ef0006-2e06-4b79-9e33-fce2c42805ec"
-    PROBE3_THRESHOLD   = "06ef0007-2e06-4b79-9e33-fce2c42805ec"
+    PROBE3_THRESHOLD = "06ef0007-2e06-4b79-9e33-fce2c42805ec"
     PROBE4_TEMPERATURE = "06ef0008-2e06-4b79-9e33-fce2c42805ec"
-    PROBE4_THRESHOLD   = "06ef0009-2e06-4b79-9e33-fce2c42805ec"
-    HEATING_ELEMENTS   = "6c91000a-58dc-41c7-943f-518b278ceaaa"
+    PROBE4_THRESHOLD = "06ef0009-2e06-4b79-9e33-fce2c42805ec"
+    HEATING_ELEMENTS = "6c91000a-58dc-41c7-943f-518b278ceaaa"
 
-class IDevicePeripheral():
+
+class IDevicePeripheral:
     encryption_key = None
     has_battery = None
     has_heating_element = None
     authenticated = False
 
-    def __init__(self, address, name, num_probes, has_battery=True, has_heating_element=False):
+    def __init__(
+        self, address, name, num_probes, has_battery=True, has_heating_element=False
+    ):
         """
         Connects to the device given by address performing necessary authentication
         """
@@ -44,6 +48,7 @@ class IDevicePeripheral():
         self.num_probes = num_probes
         self.heating_ele_val = 0
         self.temps = {1: 0, 2: 0, 3: 0, 4: 0}
+        self._client = None
 
     async def authenticate(self, client):
         """
@@ -61,10 +66,14 @@ class IDevicePeripheral():
             temp_char_name = "PROBE{}_TEMPERATURE".format(probe_num)
             temp_char = getattr(UUIDS, temp_char_name)
             self.temp_chars[probe_num] = temp_char
-            _LOGGER.debug("Added probe with index {0}, name {1}, and UUID {2}".format(probe_num, temp_char_name, temp_char))
+            _LOGGER.debug(
+                "Added probe with index {0}, name {1}, and UUID {2}".format(
+                    probe_num, temp_char_name, temp_char
+                )
+            )
         _LOGGER.debug("Authenticating...")
 
-        challenge = bytes(b'\0' * 16)
+        challenge = bytes(b"\0" * 16)
         _LOGGER.debug("Sending key of all 0's")
         await client.write_gatt_char(UUIDS.APP_CHALLENGE, challenge)
         """
@@ -85,21 +94,33 @@ class IDevicePeripheral():
         _LOGGER.debug("Authenticated")
         return True
 
-    async def update(self):
-        async with BleakClient(self.address) as client:
-            if await self.authenticate(client):
-                self.heating_ele_val = (await client.read_gatt_char(UUIDS.HEATING_ELEMENTS)) if self.has_heating_element else None
-                for probe_num, temp_char in list(self.temp_chars.items()):
-                    temp = (await client.read_gatt_char(temp_char))
-                    temp = temp[1] * 256 + temp[0]
-                    self.temps[probe_num] = float(temp) if float(temp) != 63536.0 else 0
-                battery = (await client.read_gatt_char(UUIDS.BATTERY_LEVEL))[0]
-                return float(battery) if self.has_battery else None
-            else:
-                self.heating_ele_val = 0
-                self.temps = {1: 0, 2: 0, 3: 0, 4: 0}
-                self.battery = 0
+    async def reconnect(self):
+        if not self._client or not self._client.is_connected:
+            self._client = BleakClient(self.address)
+            await self._client.connect()
+            await self.authenticate(self._client)
 
+    async def update(self):
+        try:
+            await self.reconnect()
+            self.heating_ele_val = (
+                (await self._client.read_gatt_char(UUIDS.HEATING_ELEMENTS))
+                if self.has_heating_element
+                else 0
+            )
+            for probe_num, temp_char in list(self.temp_chars.items()):
+                temp = await self._client.read_gatt_char(temp_char)
+                temp = temp[1] * 256 + temp[0]
+                self.temps[probe_num] = (
+                    float(temp) if float(temp) != 63536.0 else 0
+                )
+            battery = (await self._client.read_gatt_char(UUIDS.BATTERY_LEVEL))[0]
+            self.battery = float(battery) if self.has_battery else 0
+        except BleakError:
+            self.heating_ele_val = 0
+            self.temps = {1: 0, 2: 0, 3: 0, 4: 0}
+            self.battery = 0
+        return self
 
     def read_battery(self):
         return self.battery
@@ -107,8 +128,8 @@ class IDevicePeripheral():
     def read_heating_elements(self):
         return self.heating_ele_val
 
-    def read_temperature(self):
-        return self.temps
+    def read_temperature(self,probe):
+        return self.temps[probe]
 
 
 class IGrillMiniPeripheral(IDevicePeripheral):
@@ -116,7 +137,7 @@ class IGrillMiniPeripheral(IDevicePeripheral):
     Specialization of iDevice peripheral for the iGrill Mini
     """
 
-    def __init__(self, address, name='IGrill Mini', num_probes=1):
+    def __init__(self, address, name="IGrill Mini", num_probes=1):
         IDevicePeripheral.__init__(self, address, name, num_probes)
 
 
@@ -125,7 +146,7 @@ class IGrillV2Peripheral(IDevicePeripheral):
     Specialization of iDevice peripheral for the iGrill v2
     """
 
-    def __init__(self, address, name='IGrill V2', num_probes=4):
+    def __init__(self, address, name="IGrill V2", num_probes=4):
         IDevicePeripheral.__init__(self, address, name, num_probes)
 
 
@@ -134,7 +155,7 @@ class IGrillV3Peripheral(IDevicePeripheral):
     Specialization of iDevice peripheral for the iGrill v3
     """
 
-    def __init__(self, address, name='IGrill V3', num_probes=4):
+    def __init__(self, address, name="IGrill V3", num_probes=4):
         IDevicePeripheral.__init__(self, address, name, num_probes)
 
 
@@ -143,5 +164,7 @@ class Pulse2000Peripheral(IDevicePeripheral):
     Specialization of iDevice peripheral for the Weber Pulse 2000
     """
 
-    def __init__(self, address, name='Pulse 2000', num_probes=4):
-        IDevicePeripheral.__init__(self, address, name, num_probes, has_heating_element=True)
+    def __init__(self, address, name="Pulse 2000", num_probes=4):
+        IDevicePeripheral.__init__(
+            self, address, name, num_probes, has_heating_element=True
+        )
