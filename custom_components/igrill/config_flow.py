@@ -9,8 +9,6 @@ import asyncio
 
 from .igrill import IDevicePeripheral
 
-from bleak import BleakError
-
 from homeassistant.config_entries import ConfigEntry, ConfigFlow
 from homeassistant.const import (
     CONF_NAME,
@@ -35,16 +33,13 @@ class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
         errors = {}
 
         if user_input is not None:
-            name = user_input[CONF_MAC]
-            try:
-                sensortype = user_input[CONF_SENSORTYPE].value
-                mac = user_input[CONF_MAC]
-                device = DEVICE_TYPES[sensortype](mac)
-                await device.update()
-                name = device.name
-            except BleakError as e:
-                print(e)
-                errors["base"] = " ".join(str(r) for r in e.args)
+            sensortype = user_input[CONF_SENSORTYPE].value
+            mac = user_input[CONF_MAC]
+            device = DEVICE_TYPES[sensortype](mac)
+            await device.update()
+            name = device.name
+            if not device.authenticated:
+                errors["base"] = "not_authenticated"
             else:
                 return self.async_create_entry(
                     title=name,
