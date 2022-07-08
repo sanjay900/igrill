@@ -3,7 +3,7 @@
   "name": "Weber iGrill",
   "config_flow": true,
   "documentation": "https://github.com/sanjay900/igrill",
-  "requirements": ["bluepy==1.3.0"],
+  "requirements": ["bleak==0.14.2"],
   "codeowners": [],
   "version": "v1.0.0",
   "iot_class": "local_polling"
