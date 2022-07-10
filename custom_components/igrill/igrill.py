@@ -105,7 +105,7 @@ class IDevicePeripheral():
             return True
         return False
     async def close(self):
-        self._disconnect()
+        await self._disconnect()
     async def update(self):
         try:
             async with CONNECT_LOCK:
