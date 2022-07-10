@@ -77,12 +77,12 @@ class IDevicePeripheral():
         """
         if not self.authenticated:
             await self._connect()
+            await self._device.pair(protection_level=1)
             _LOGGER.debug("Authenticating...")
 
             # send app challenge (16 bytes) (must be wrapped in a bytearray)
             challenge = bytes(b'\0' * 16)
             _LOGGER.debug("Sending key of all 0's")
-            await self._device.pair()
             await self._device.write_gatt_char(UUIDS.APP_CHALLENGE, challenge)
 
             """
