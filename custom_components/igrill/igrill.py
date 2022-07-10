@@ -62,7 +62,7 @@ class IDevicePeripheral():
             _LOGGER.debug("Added probe with index {0}, name {1}, and UUID {2}".format(probe_num, temp_char_name, temp_char))
     async def _disconnect(self):
         if self._device is not None:
-            self._device.disconnect()
+            await self._device.disconnect()
     async def _connect(self) -> bool:
         # Disconnect before connecting
         await self._disconnect()
