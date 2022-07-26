@@ -68,7 +68,7 @@ class IDevicePeripheral():
         await self._disconnect()
         _LOGGER.debug("Connecting...")
         self._device = bleak.BleakClient(self.address)
-        await self._device.connect(timeout=0.0)
+        await self._device.connect()
     async def authenticate(self):
         """
         Performs iDevices challenge/response handshake. Returns if handshake succeeded
@@ -105,7 +105,8 @@ class IDevicePeripheral():
             return True
         return False
     async def close(self):
-        await self._disconnect()
+        async with CONNECT_LOCK:
+            await self._disconnect()
     async def update(self):
         try:
             async with CONNECT_LOCK:
@@ -118,9 +119,11 @@ class IDevicePeripheral():
                         temp = data[0] + (data[1] * 256)
                         self.temps[probe_num] = float(temp) if float(temp) != 63536.0 else 0
                     self.battery = float(bytearray(await self._device.read_gatt_char(UUIDS.BATTERY_LEVEL))[0])
-        except (bleak.BleakError):
-            _LOGGER.exception("Failed to connect to igrill",
+        except bleak.BleakError:
+            _LOGGER.error("Failed to connect to igrill",
                 exc_info=logging.DEBUG >= _LOGGER.root.level)
+            self.authenticated = False
+        except asyncio.exceptions.TimeoutError:
             self.authenticated = False
         return self
 
