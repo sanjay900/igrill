@@ -27,7 +27,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     igrill_update: DataUpdateCoordinator[IDevicePeripheral] = DataUpdateCoordinator(
         hass,
-        LOGGER,
+        _LOGGER,
         name=f"{DOMAIN}_{SERVICE_IGRILL}",
         update_interval=SCAN_INTERVAL,
         update_method=sensor.update,
@@ -42,7 +42,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_migrate_entry(hass, config_entry: ConfigEntry):
     """Migrate old entry."""
-    LOGGER.debug("Migrating from version %s", config_entry.version)
+    _LOGGER.debug("Migrating from version %s", config_entry.version)
 
     if config_entry.version == 1:
 
@@ -52,7 +52,7 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
         config_entry.version = 2
         hass.config_entries.async_update_entry(config_entry, data=new)
 
-    LOGGER.info("Migration to version %s successful", config_entry.version)
+    _LOGGER.info("Migration to version %s successful", config_entry.version)
 
     return True
 
