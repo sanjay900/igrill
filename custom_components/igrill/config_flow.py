@@ -30,22 +30,6 @@ class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
 
     entry: ConfigEntry | None = None
 
-    async def async_migrate_entry(hass, config_entry: ConfigEntry):
-        """Migrate old entry."""
-        _LOGGER.debug("Migrating from version %s", config_entry.version)
-
-        if config_entry.version == 1:
-
-            new = {**config_entry.data}
-            new[CONF_BT_INTERFACE] = [DEFAULT_BT_INTERFACE]
-
-            config_entry.version = 2
-            hass.config_entries.async_update_entry(config_entry, data=new)
-
-        _LOGGER.info("Migration to version %s successful", config_entry.version)
-
-        return True
-
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:

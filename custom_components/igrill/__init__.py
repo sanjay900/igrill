@@ -9,8 +9,10 @@ from homeassistant.const import (
 )
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
+from .bt_helpers import DEFAULT_BT_INTERFACE
+
 from .igrill import IDevicePeripheral
-from .const import DEVICE_TYPES, DOMAIN, LOGGER, SERVICE_IGRILL, SCAN_INTERVAL, CONF_SENSORTYPE, SensorType
+from .const import CONF_BT_INTERFACE, DEVICE_TYPES, DOMAIN, LOGGER, SERVICE_IGRILL, SCAN_INTERVAL, CONF_SENSORTYPE, SensorType
 
 # List of platforms to support. There should be a matching .py file for each,
 # eg <cover.py> and <sensor.py>
@@ -34,6 +36,23 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # It's done by calling the `async_setup_entry` function in each platform module.
     hass.config_entries.async_setup_platforms(entry, PLATFORMS)
+    return True
+
+
+async def async_migrate_entry(hass, config_entry: ConfigEntry):
+    """Migrate old entry."""
+    LOGGER.debug("Migrating from version %s", config_entry.version)
+
+    if config_entry.version == 1:
+
+        new = {**config_entry.data}
+        new[CONF_BT_INTERFACE] = [DEFAULT_BT_INTERFACE]
+
+        config_entry.version = 2
+        hass.config_entries.async_update_entry(config_entry, data=new)
+
+    LOGGER.info("Migration to version %s successful", config_entry.version)
+
     return True
 
 
