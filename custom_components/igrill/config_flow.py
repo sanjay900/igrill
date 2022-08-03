@@ -9,7 +9,7 @@ import asyncio
 
 from .igrill import _LOGGER, IDevicePeripheral
 from .bt_helpers import (
-    DEFAULT_BT_INTERFACE,
+    DEFAULT_HCI_INTERFACE,
     BT_MULTI_SELECT,
 )
 from homeassistant.config_entries import ConfigEntry, ConfigFlow
@@ -50,7 +50,7 @@ class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
                     data={
                         CONF_SENSORTYPE: user_input[CONF_SENSORTYPE].value,
                         CONF_MAC: user_input[CONF_MAC],
-                        CONF_BT_INTERFACE: DEFAULT_BT_INTERFACE
+                        CONF_BT_INTERFACE: DEFAULT_HCI_INTERFACE
                     },
                 )
 
@@ -59,7 +59,7 @@ class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Optional(
-                        CONF_BT_INTERFACE, default=[DEFAULT_BT_INTERFACE]
+                        CONF_BT_INTERFACE, default=DEFAULT_HCI_INTERFACE
                     ): vol.In(BT_MULTI_SELECT),
                     vol.Required(CONF_MAC): str,
                     vol.Required(CONF_SENSORTYPE): vol.Coerce(SensorType),

@@ -162,7 +162,7 @@ def reset_bluetooth(hci):
 BT_INTERFACES = hci_get_mac([0, 1, 2, 3])
 if BT_INTERFACES:
     DEFAULT_BT_INTERFACE = list(BT_INTERFACES.items())[0][1]
-    DEFAULT_HCI_INTERFACE = list(BT_INTERFACES.items())[0][0]
+    DEFAULT_HCI_INTERFACE = f'hci{list(BT_INTERFACES.items())[0][0]}'
     BT_MULTI_SELECT = {f'hci{key}': f'{value} (hci{key})' for (key, value) in BT_INTERFACES.items()}
 else:
     DEFAULT_BT_INTERFACE = "disable"
