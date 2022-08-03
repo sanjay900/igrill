@@ -85,7 +85,7 @@ class IDevicePeripheral():
         """
         if not self.authenticated:
             if not await self._connect():
-                return
+                return False
             await self._device.pair(protection_level=1)
             _LOGGER.debug("Authenticating...")
 
@@ -119,8 +119,9 @@ class IDevicePeripheral():
     async def update(self):
         try:
             async with CONNECT_LOCK:
-                if not self.authenticated:
-                    await self.authenticate()
+                if not self.authenticated or not await self.authenticate():
+                    self.authenticated = False
+                    return self
                 if self.authenticated:
                     self.heatingEleVal = bytearray(await self._device.read_gatt_char(UUIDS.HEATING_ELEMENTS)) if self.has_heating_element else 0
                     for probe_num, temp_char in list(self.temp_chars.items()):
