@@ -6,6 +6,7 @@ import threading
 
 
 import bleak
+from bleak import BleakScanner
 import asyncio
 import random
 from queue import Queue
@@ -66,9 +67,13 @@ class IDevicePeripheral():
     async def _connect(self) -> bool:
         # Disconnect before connecting
         await self._disconnect()
-        _LOGGER.debug("Connecting...")
-        self._device = bleak.BleakClient(self.address)
-        await self._device.connect()
+        async with BleakScanner() as scanner:
+            await asyncio.sleep(5.0)
+            for d in scanner.discovered_devices:
+                if d.address == self.address:
+                    _LOGGER.debug("Connecting...")
+                    self._device = bleak.BleakClient(self.address)
+                    await self._device.connect()
     async def authenticate(self):
         """
         Performs iDevices challenge/response handshake. Returns if handshake succeeded
