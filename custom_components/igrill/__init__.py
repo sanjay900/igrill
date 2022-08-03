@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from .bt_helpers import DEFAULT_HCI_INTERFACE
 
 from .igrill import IDevicePeripheral
-from .const import CONF_BT_INTERFACE, DEVICE_TYPES, DOMAIN, LOGGER, SERVICE_IGRILL, SCAN_INTERVAL, CONF_SENSORTYPE, SensorType
+from .const import CONF_BT_INTERFACE, DEVICE_TYPES, DOMAIN, _LOGGER, SERVICE_IGRILL, SCAN_INTERVAL, CONF_SENSORTYPE, SensorType
 
 # List of platforms to support. There should be a matching .py file for each,
 # eg <cover.py> and <sensor.py>
