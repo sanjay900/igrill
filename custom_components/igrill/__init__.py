@@ -22,7 +22,8 @@ PLATFORMS: list[str] = [Platform.SENSOR]
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     sensortype = entry.data[CONF_SENSORTYPE]
     mac = entry.data[CONF_MAC]
-    sensor = DEVICE_TYPES[sensortype](mac)  
+    hci = entry.data[CONF_BT_INTERFACE]
+    sensor = DEVICE_TYPES[sensortype](mac, hci)  
 
     igrill_update: DataUpdateCoordinator[IDevicePeripheral] = DataUpdateCoordinator(
         hass,

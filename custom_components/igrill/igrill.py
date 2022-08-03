@@ -156,9 +156,9 @@ class IGrillMiniPeripheral(IDevicePeripheral):
     Specialization of iDevice peripheral for the iGrill Mini
     """
 
-    def __init__(self, address, name='igrill_mini', num_probes=1):
+    def __init__(self, address, hci, name='igrill_mini', num_probes=1):
         _LOGGER.debug("Created new device with name {}".format(name))
-        IDevicePeripheral.__init__(self, address, name, num_probes)
+        IDevicePeripheral.__init__(self, address, name, num_probes, hci)
 
 
 class IGrillV2Peripheral(IDevicePeripheral):
@@ -166,9 +166,9 @@ class IGrillV2Peripheral(IDevicePeripheral):
     Specialization of iDevice peripheral for the iGrill v2
     """
 
-    def __init__(self, address, name='igrill_v2', num_probes=4):
+    def __init__(self, address, hci, name='igrill_v2', num_probes=4):
         _LOGGER.debug("Created new device with name {}".format(name))
-        IDevicePeripheral.__init__(self, address, name, num_probes)
+        IDevicePeripheral.__init__(self, address, name, num_probes, hci)
 
 
 class IGrillV3Peripheral(IDevicePeripheral):
@@ -176,9 +176,9 @@ class IGrillV3Peripheral(IDevicePeripheral):
     Specialization of iDevice peripheral for the iGrill v3
     """
 
-    def __init__(self, address, name='igrill_v3', num_probes=4):
+    def __init__(self, address, hci, name='igrill_v3', num_probes=4):
         _LOGGER.debug("Created new device with name {}".format(name))
-        IDevicePeripheral.__init__(self, address, name, num_probes)
+        IDevicePeripheral.__init__(self, address, name, num_probes, hci)
 
 
 class Pulse2000Peripheral(IDevicePeripheral):
@@ -186,6 +186,6 @@ class Pulse2000Peripheral(IDevicePeripheral):
     Specialization of iDevice peripheral for the Weber Pulse 2000
     """
 
-    def __init__(self, address, name='pulse_2000', num_probes=4):
+    def __init__(self, address, hci, name='pulse_2000', num_probes=4):
         _LOGGER.debug("Created new device with name {}".format(name))
-        IDevicePeripheral.__init__(self, address, name, num_probes, has_heating_element=True)
+        IDevicePeripheral.__init__(self, address, name, num_probes, hci, has_heating_element=True)
