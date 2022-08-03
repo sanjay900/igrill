@@ -7,24 +7,44 @@ import voluptuous as vol
 
 import asyncio
 
-from .igrill import IDevicePeripheral
-
+from .igrill import _LOGGER, IDevicePeripheral
+from .bt_helpers import (
+    DEFAULT_BT_INTERFACE,
+    BT_MULTI_SELECT,
+)
 from homeassistant.config_entries import ConfigEntry, ConfigFlow
+from homeassistant.helpers import device_registry, config_validation as cv
 from homeassistant.const import (
     CONF_NAME,
     CONF_MAC,
 )
 from homeassistant.data_entry_flow import FlowResult
 
-from .const import DOMAIN, CONF_SENSORTYPE, DEVICE_TYPES, SensorType
+from .const import DOMAIN, CONF_SENSORTYPE, DEVICE_TYPES, SensorType, CONF_BT_INTERFACE
 
 
 class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
     """Config flow for igrill."""
 
-    VERSION = 1
+    VERSION = 2
 
     entry: ConfigEntry | None = None
+
+    async def async_migrate_entry(hass, config_entry: ConfigEntry):
+        """Migrate old entry."""
+        _LOGGER.debug("Migrating from version %s", config_entry.version)
+
+        if config_entry.version == 1:
+
+            new = {**config_entry.data}
+            new[CONF_BT_INTERFACE] = [DEFAULT_BT_INTERFACE]
+
+            config_entry.version = 2
+            hass.config_entries.async_update_entry(config_entry, data=new)
+
+        _LOGGER.info("Migration to version %s successful", config_entry.version)
+
+        return True
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -46,6 +66,7 @@ class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
                     data={
                         CONF_SENSORTYPE: user_input[CONF_SENSORTYPE].value,
                         CONF_MAC: user_input[CONF_MAC],
+                        CONF_BT_INTERFACE: DEFAULT_BT_INTERFACE
                     },
                 )
 
@@ -53,6 +74,9 @@ class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
             step_id="user",
             data_schema=vol.Schema(
                 {
+                    vol.Optional(
+                        CONF_BT_INTERFACE, default=[DEFAULT_BT_INTERFACE]
+                    ): cv.multi_select(BT_MULTI_SELECT),
                     vol.Required(CONF_MAC): str,
                     vol.Required(CONF_SENSORTYPE): vol.Coerce(SensorType),
                 }

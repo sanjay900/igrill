@@ -14,7 +14,8 @@ from .igrill import (
     Pulse2000Peripheral,
 )
 
-
+CONF_HCI_INTERFACE = "hci_interface"
+CONF_BT_INTERFACE = "bt_interface"
 SERVICE_IGRILL: Final = "igrill"
 SCAN_INTERVAL = timedelta(seconds=10)
 LOGGER = logging.getLogger(__package__)
