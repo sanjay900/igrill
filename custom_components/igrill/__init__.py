@@ -9,7 +9,7 @@ from homeassistant.const import (
 )
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .bt_helpers import DEFAULT_BT_INTERFACE
+from .bt_helpers import DEFAULT_HCI_INTERFACE
 
 from .igrill import IDevicePeripheral
 from .const import CONF_BT_INTERFACE, DEVICE_TYPES, DOMAIN, LOGGER, SERVICE_IGRILL, SCAN_INTERVAL, CONF_SENSORTYPE, SensorType
@@ -46,7 +46,7 @@ async def async_migrate_entry(hass, config_entry: ConfigEntry):
     if config_entry.version == 1:
 
         new = {**config_entry.data}
-        new[CONF_BT_INTERFACE] = [DEFAULT_BT_INTERFACE]
+        new[CONF_BT_INTERFACE] = DEFAULT_HCI_INTERFACE
 
         config_entry.version = 2
         hass.config_entries.async_update_entry(config_entry, data=new)
