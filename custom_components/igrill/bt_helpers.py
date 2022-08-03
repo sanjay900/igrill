@@ -163,7 +163,7 @@ BT_INTERFACES = hci_get_mac([0, 1, 2, 3])
 if BT_INTERFACES:
     DEFAULT_BT_INTERFACE = list(BT_INTERFACES.items())[0][1]
     DEFAULT_HCI_INTERFACE = list(BT_INTERFACES.items())[0][0]
-    BT_MULTI_SELECT = {value: f'{value} (hci{key})' for (key, value) in BT_INTERFACES.items()}
+    BT_MULTI_SELECT = {f'hci{key}': f'{value} (hci{key})' for (key, value) in BT_INTERFACES.items()}
 else:
     DEFAULT_BT_INTERFACE = "disable"
     DEFAULT_HCI_INTERFACE = "disable"
@@ -171,4 +171,3 @@ else:
     _LOGGER.debug(
         "No Bluetooth LE adapter found. Make sure Bluetooth is installed on your system."
     )
-BT_MULTI_SELECT["disable"] = "Don't use Bluetooth adapter"

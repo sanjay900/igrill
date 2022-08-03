@@ -40,10 +40,11 @@ class IDevicePeripheral():
     has_heating_element = None
     authenticated = False
 
-    def __init__(self, address, name, num_probes, has_battery=True, has_heating_element=False):
+    def __init__(self, address, name, num_probes, hci, has_battery=True, has_heating_element=False):
         """
         Connects to the device given by address performing necessary authentication
         """
+        self.hci = hci
         self.name = name
         self.address = address
         self.has_battery = has_battery
@@ -67,13 +68,15 @@ class IDevicePeripheral():
     async def _connect(self) -> bool:
         # Disconnect before connecting
         await self._disconnect()
-        async with BleakScanner() as scanner:
+        async with BleakScanner(adapter=self.hci) as scanner:
             await asyncio.sleep(5.0)
             for d in scanner.discovered_devices:
                 if d.address == self.address:
                     _LOGGER.debug("Connecting...")
-                    self._device = bleak.BleakClient(self.address)
+                    self._device = bleak.BleakClient(self.address, adapter=self.hci)
                     await self._device.connect()
+                    return True
+        return False
     async def authenticate(self):
         """
         Performs iDevices challenge/response handshake. Returns if handshake succeeded
@@ -81,7 +84,8 @@ class IDevicePeripheral():
         (copied from https://github.com/kins-dev/igrill-smoker, thanks for the tip!)
         """
         if not self.authenticated:
-            await self._connect()
+            if not await self._connect():
+                return
             await self._device.pair(protection_level=1)
             _LOGGER.debug("Authenticating...")
 
@@ -185,13 +189,3 @@ class Pulse2000Peripheral(IDevicePeripheral):
     def __init__(self, address, name='pulse_2000', num_probes=4):
         _LOGGER.debug("Created new device with name {}".format(name))
         IDevicePeripheral.__init__(self, address, name, num_probes, has_heating_element=True)
-
-
-async def main():
-    igrill = IGrillV2Peripheral("70:91:8F:0E:45:9C")
-    await igrill.update()
-    print(igrill.temps)
-    print(igrill.battery)
-
-if __name__ == '__main__':
-    asyncio.run(main())

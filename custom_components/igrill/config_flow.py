@@ -60,7 +60,7 @@ class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
                 {
                     vol.Optional(
                         CONF_BT_INTERFACE, default=[DEFAULT_BT_INTERFACE]
-                    ): cv.multi_select(BT_MULTI_SELECT),
+                    ): vol.In(BT_MULTI_SELECT),
                     vol.Required(CONF_MAC): str,
                     vol.Required(CONF_SENSORTYPE): vol.Coerce(SensorType),
                 }
