@@ -119,7 +119,7 @@ class IDevicePeripheral():
     async def update(self):
         try:
             async with CONNECT_LOCK:
-                if not self.authenticated or not await self.authenticate():
+                if not self.authenticated and not await self.authenticate():
                     self.authenticated = False
                     return self
                 if self.authenticated:
