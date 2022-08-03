@@ -39,7 +39,8 @@ class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             sensortype = user_input[CONF_SENSORTYPE].value
             mac = user_input[CONF_MAC]
-            device = DEVICE_TYPES[sensortype](mac)
+            hci = user_input[CONF_BT_INTERFACE]
+            device = DEVICE_TYPES[sensortype](mac, hci)
             await device.update()
             name = device.name
             if not device.authenticated:
@@ -50,7 +51,7 @@ class IGrillFlowHandler(ConfigFlow, domain=DOMAIN):
                     data={
                         CONF_SENSORTYPE: user_input[CONF_SENSORTYPE].value,
                         CONF_MAC: user_input[CONF_MAC],
-                        CONF_BT_INTERFACE: DEFAULT_HCI_INTERFACE
+                        CONF_BT_INTERFACE: user_input[CONF_BT_INTERFACE]
                     },
                 )
 
