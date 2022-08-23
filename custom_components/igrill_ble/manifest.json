@@ -1,0 +1,23 @@
+{
+  "domain": "igrill_ble",
+  "name": "Weber iGrill BLE Sensor",
+  "config_flow": true,
+  "documentation": "https://github.com/sanjay900/igrill",
+  "dependencies": [
+    "bluetooth"
+  ],
+  "requirements": [
+    "home-assistant-bluetooth>=1.3.0",
+    "sensor-state-data>=2.1.2",
+    "bluetooth-sensor-state-data>=1.5.0",
+    "bleak_retry_connector>=1.11.0"
+  ],
+  "codeowners": [],
+  "version": "v1.0.0",
+  "iot_class": "local_polling",
+  "bluetooth": [
+    {
+      "local_name": "iGrill*"
+    }
+  ]
+}
