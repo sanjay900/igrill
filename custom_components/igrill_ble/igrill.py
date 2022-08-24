@@ -2,7 +2,6 @@ from builtins import range
 from builtins import object
 import logging
 from collections.abc import Callable
-from typing import Optional, Union
 
 from bleak import BleakClient
 
@@ -12,11 +11,9 @@ from bleak_retry_connector import (
 )
 
 from homeassistant.components.bluetooth.passive_update_processor import (
-    PassiveBluetoothDataUpdate,
     PassiveBluetoothEntityKey,
 )
 from homeassistant.core import callback
-from homeassistant.helpers.entity import DeviceInfo, EntityDescription
 from .const import SensorType
 import asyncio
 from bluetooth_sensor_state_data import BluetoothData
