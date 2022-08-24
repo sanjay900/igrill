@@ -1,16 +1,24 @@
 from builtins import range
 from builtins import object
 import logging
-from typing import Optional
-
+from collections.abc import Callable
+from typing import Optional, Union
 
 from bleak import BleakClient
+
 from bleak_retry_connector import (
     BLEDevice,
     establish_connection,
 )
-from home_assistant_bluetooth import BluetoothServiceInfo
-from .const import DEVICE_TIMEOUT, SensorType
+
+from homeassistant.components.bluetooth.models import BluetoothServiceInfoBleak
+from homeassistant.components.bluetooth.passive_update_processor import (
+    PassiveBluetoothDataUpdate,
+    PassiveBluetoothEntityKey,
+)
+from homeassistant.core import callback
+from homeassistant.helpers.entity import DeviceInfo, EntityDescription
+from .const import SensorType
 import asyncio
 from bluetooth_sensor_state_data import BluetoothData
 from sensor_state_data import (
@@ -48,7 +56,9 @@ class UUIDS(object):
     AMBIENT_TEMP_PULSE = "6C910001-58DC-41C7-943F-518B278CEAAA"
     AMBIENT_THRESHOLD = "06EF000B-2E06-4B79-9E33-FCE2C42805EC"
     PROPANE_LEVEL = "F5D40001-3548-4C22-9947-F3673FCE3CD9"
+    MODEL_NUMBER = "00002a24-0000-1000-8000-00805f9b34fb"
     SERIAL_NUMBER = "00002a25-0000-1000-8000-00805f9b34fb"
+    LED_KNOB_TOGGLE = "EAEF0001-3909-454C-9D7E-E68CBA24A9B8"
 
 
 class IDevicePeripheral(BluetoothData):
@@ -73,30 +83,126 @@ class IDevicePeripheral(BluetoothData):
         self.has_ambient_temp = False
         self.num_probes = num_probes
         self.temp_chars = {}
-        self.available = False
+        self.temp_threshold_chars = {}
+        self.connected = False
         self.retrieved_device_info = False
+        self.is_celsius = False
+        self.client = None
+        self._listeners = []
+        self.data = {}
+        self.bt_name = None
+        self.address = None
+        self.entity_data = {}
 
         for probe_num in range(1, self.num_probes + 1):
             temp_char_name = "PROBE{}_TEMPERATURE".format(probe_num)
             temp_char = getattr(UUIDS, temp_char_name)
-            self.temp_chars[probe_num] = temp_char
+            self.temp_chars[temp_char] = probe_num
+            temp_threshold_name = "PROBE{}_THRESHOLD".format(probe_num)
+            temp_char = getattr(UUIDS, temp_threshold_name)
+            self.temp_threshold_chars[probe_num] = temp_char
 
-    def poll_needed(
-        self, service_info: BluetoothServiceInfo, last_poll: Optional[float]
-    ) -> bool:
-        return not last_poll or last_poll > DEVICE_TIMEOUT
+    @callback
+    def async_add_listener(
+        self,
+        update_callback: Callable[[SensorUpdate], None],
+    ) -> Callable[[], None]:
+        """Listen for all updates."""
+
+        @callback
+        def remove_listener() -> None:
+            """Remove update listener."""
+            self._listeners.remove(update_callback)
+
+        self._listeners.append(update_callback)
+        return remove_listener
+
+    async def set_led_state(self, ble_device: BLEDevice):
+        self.client = await establish_connection(
+            BleakClient, ble_device, ble_device.address
+        )
+        if self.connected and self.has_led_knob_light:
+            await self.client.write_gatt_char(UUIDS.LED_KNOB_TOGGLE, [1])
+
+    def _on_disconnect(self, device):
+        self.connected = False
+        self.client = None
+        self.update_listeners()
+
+    def update_listeners(self):
+        data = self._finish_update()
+        for listener in self._listeners:
+            listener(data)
+
+    def update_temp_sensor(self, payload, name):
+        temp = payload[0] + (payload[1] * 256)
+        temp = float(temp) if float(temp) != 63536.0 else 0
+        temp_unit = SensorLibrary.TEMPERATURE__CELSIUS
+        self.update_predefined_sensor(temp_unit, temp, name)
+        self.update_listeners()
+
+    def update_heating_sensor(self, payload):
+        payload = [float(x) for x in payload.decode("utf-8").split()]
+        self.update_predefined_sensor(
+            SensorLibrary.TEMPERATURE__CELSIUS,
+            payload[0],
+            "heating_element_left_actual",
+        )
+        self.update_predefined_sensor(
+            SensorLibrary.TEMPERATURE__CELSIUS,
+            payload[1],
+            "heating_element_right_actual",
+        )
+        self.update_predefined_sensor(
+            SensorLibrary.TEMPERATURE__CELSIUS,
+            payload[2],
+            "heating_element_left_setpoint",
+        )
+        self.update_predefined_sensor(
+            SensorLibrary.TEMPERATURE__CELSIUS,
+            payload[3],
+            "heating_element_right_setpoint",
+        )
+        self.update_listeners()
+
+    def update_propane_sensor(self, payload):
+        val = float(payload[0]) * 25
+        self.update_predefined_sensor(
+            BaseSensorDescription(
+                device_class=SensorDeviceClass.GAS,
+                native_unit_of_measurement=Units.PERCENTAGE,
+            ),
+            val,
+            "propane_percentage",
+        )
+        self.update_listeners()
+
+    async def close(self):
+        if self.connected:
+            await self.client.disconnect()
+
+    def get_data(self, key: PassiveBluetoothEntityKey):
+        return self.entity_data[key].native_value
 
     async def async_poll(self, ble_device: BLEDevice) -> SensorUpdate:
         """
         Poll the device to retrieve any values we can't get from passive listening.
         """
-        client = await establish_connection(BleakClient, ble_device, ble_device.address)
-        try:
-            await client.pair(protection_level=1)
+        self.bt_name = ble_device.name
+        self.address = ble_device.address
+        if not self.connected:
+            self.client = await establish_connection(
+                BleakClient, ble_device, ble_device.address
+            )
+            self.connected = True
+            self.client.set_disconnected_callback(
+                lambda device: self._on_disconnect(device)
+            )
+            await self.client.pair(protection_level=1)
 
             # send app challenge (16 bytes) (must be wrapped in a bytearray)
             challenge = bytes(b"\0" * 16)
-            await client.write_gatt_char(UUIDS.APP_CHALLENGE, challenge)
+            await self.client.write_gatt_char(UUIDS.APP_CHALLENGE, challenge)
 
             # Normally we'd have to perform some crypto operations:
             #     Write a challenge (in this case 16 bytes of 0)
@@ -108,10 +214,10 @@ class IDevicePeripheral(BluetoothData):
             #     Send back the new value
             # But wait!  Our first 8 bytes are already 0.  That means we don't need the key.
             # We just hand back the same encrypted value we get and we're good.
-            encrypted_device_challenge = await client.read_gatt_char(
+            encrypted_device_challenge = await self.client.read_gatt_char(
                 UUIDS.DEVICE_CHALLENGE
             )
-            await client.write_gatt_char(
+            await self.client.write_gatt_char(
                 UUIDS.DEVICE_RESPONSE, encrypted_device_challenge
             )
 
@@ -119,68 +225,64 @@ class IDevicePeripheral(BluetoothData):
                 self.retrieved_device_info = True
                 self.set_device_manufacturer("Weber")
                 self.set_device_type(self.name)
-                payload = await client.read_gatt_char(UUIDS.FIRMWARE_VERSION)
+                payload = await self.client.read_gatt_char(UUIDS.FIRMWARE_VERSION)
                 self.set_device_sw_version(payload.rstrip(b"\x00").decode("utf-8"))
-                if (await client.get_services()).get_characteristic(
-                    UUIDS.AMBIENT_TEMPERATURE
-                ):
-                    self.has_ambient_temp = True
+            char_ids = {}
+            services = await self.client.get_services()
+            for char, probe_id in self.temp_chars.items():
+                char_ids[services.get_characteristic(char).handle] = probe_id
+                await self.client.start_notify(
+                    char,
+                    lambda handle, payload: self.update_temp_sensor(
+                        payload, f"probe_{char_ids[handle]}"
+                    ),
+                )
+                self.update_temp_sensor(
+                    await self.client.read_gatt_char(char), f"probe_{probe_id}"
+                )
 
-            for probe_num, char in self.temp_chars.items():
-                payload = await client.read_gatt_char(char)
-                temp = payload[0] + (payload[1] * 256)
-                temp = float(temp) if float(temp) != 63536.0 else 0
-                self.update_predefined_sensor(
-                    SensorLibrary.TEMPERATURE__CELSIUS, temp, f"probe_{probe_num}"
+            if (await self.client.get_services()).get_characteristic(
+                UUIDS.AMBIENT_TEMPERATURE
+            ):
+                self.has_ambient_temp = True
+                await self.client.start_notify(
+                    UUIDS.AMBIENT_TEMPERATURE,
+                    lambda handle, payload: self.update_temp_sensor(
+                        payload, "ambient_temp"
+                    ),
                 )
-            if self.has_ambient_temp:
-                payload = await client.read_gatt_char(UUIDS.AMBIENT_TEMPERATURE)
-                self.update_predefined_sensor(
-                    SensorLibrary.TEMPERATURE__CELSIUS, payload[0], "ambient_temp"
+                self.update_temp_sensor(
+                    await self.client.read_gatt_char(UUIDS.AMBIENT_TEMPERATURE),
+                    "ambient_temp",
                 )
+
             if self.has_heating_element:
-                payload = await client.read_gatt_char(UUIDS.HEATING_ELEMENTS)
-                payload = [float(x) for x in payload.decode("utf-8").split()]
-                self.update_predefined_sensor(
-                    SensorLibrary.TEMPERATURE__CELSIUS,
-                    payload[0],
-                    "heating_element_left_actual",
+                await self.client.start_notify(
+                    UUIDS.HEATING_ELEMENTS,
+                    lambda handle, payload: self.update_heating_sensor(payload),
                 )
-                self.update_predefined_sensor(
-                    SensorLibrary.TEMPERATURE__CELSIUS,
-                    payload[1],
-                    "heating_element_right_actual",
-                )
-                self.update_predefined_sensor(
-                    SensorLibrary.TEMPERATURE__CELSIUS,
-                    payload[2],
-                    "heating_element_left_setpoint",
-                )
-                self.update_predefined_sensor(
-                    SensorLibrary.TEMPERATURE__CELSIUS,
-                    payload[3],
-                    "heating_element_right_setpoint",
+                await self.update_heating_sensor(
+                    self.client.read_gatt_char(UUIDS.HEATING_ELEMENTS),
                 )
             if self.has_battery:
-                payload = await client.read_gatt_char(UUIDS.BATTERY_LEVEL)
+                await self.client.start_notify(
+                    UUIDS.BATTERY_LEVEL,
+                    lambda handle, payload: self.update_predefined_sensor(
+                        SensorLibrary.BATTERY__PERCENTAGE, payload[0]
+                    ),
+                )
+                payload = await self.client.read_gatt_char(UUIDS.BATTERY_LEVEL)
                 self.update_predefined_sensor(
                     SensorLibrary.BATTERY__PERCENTAGE, payload[0]
                 )
             if self.has_propane:
-                payload = await client.read_gatt_char(UUIDS.BATTERY_LEVEL)
-                val = float(payload[0]) * 25
-                self.update_predefined_sensor(
-                    BaseSensorDescription(
-                        device_class=SensorDeviceClass.GAS,
-                        native_unit_of_measurement=Units.PERCENTAGE,
-                    ),
-                    val,
-                    "propane_percentage",
+                await self.client.start_notify(
+                    UUIDS.PROPANE_LEVEL,
+                    lambda handle, payload: self.update_propane_sensor(payload),
                 )
-
-        finally:
-            await client.disconnect()
-
+                self.update_propane_sensor(
+                    await self.client.read_gatt_char(UUIDS.PROPANE_LEVEL),
+                )
         return self._finish_update()
 
 
