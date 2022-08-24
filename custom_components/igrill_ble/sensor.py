@@ -65,7 +65,12 @@ SENSOR_DESCRIPTIONS = {
         state_class=SensorStateClass.MEASUREMENT,
         entity_registry_enabled_default=False,
     ),
-    # Used for e.g. moisture sensor on HHCCJCY01
+    (DeviceClass.GAS, Units.PERCENTAGE): SensorEntityDescription(
+        key=f"{DeviceClass.GAS}_{Units.PERCENTAGE}",
+        device_class=DeviceClass.GAS,
+        native_unit_of_measurement=PERCENTAGE,
+        state_class=SensorStateClass.MEASUREMENT,
+    ),
     (None, Units.PERCENTAGE): SensorEntityDescription(
         key=str(Units.PERCENTAGE),
         device_class=None,
