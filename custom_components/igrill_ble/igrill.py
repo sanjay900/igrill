@@ -11,7 +11,6 @@ from bleak_retry_connector import (
     establish_connection,
 )
 
-from homeassistant.components.bluetooth.models import BluetoothServiceInfoBleak
 from homeassistant.components.bluetooth.passive_update_processor import (
     PassiveBluetoothDataUpdate,
     PassiveBluetoothEntityKey,
