@@ -1,11 +1,8 @@
 """Support for displaying collected data over SNMP."""
 import logging
-from typing import Optional, Union
 from homeassistant.components.bluetooth.passive_update_processor import (
-    PassiveBluetoothDataProcessor,
     PassiveBluetoothDataUpdate,
     PassiveBluetoothEntityKey,
-    PassiveBluetoothProcessorCoordinator,
     PassiveBluetoothProcessorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
