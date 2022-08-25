@@ -13,7 +13,6 @@ from .const import (
     CONF_SENSORTYPE,
 )
 from homeassistant.components.bluetooth.match import (
-    ADDRESS,
     BluetoothCallbackMatcher,
 )
 
@@ -36,15 +35,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         change: bluetooth.BluetoothChange,
     ) -> None:
         """Update from a ble callback."""
-        hass.async_create_task(data.async_poll(service_info.device))
+        hass.async_create_task(data.async_init(service_info.device))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(
         bluetooth.async_register_callback(
             hass,
             _async_update_ble,
-            BluetoothCallbackMatcher({ADDRESS: address}),
-            bluetooth.BluetoothScanningMode.PASSIVE,
+            BluetoothCallbackMatcher(address=address),
+            bluetooth.BluetoothScanningMode.ACTIVE,
         )
     )  # only start after all platforms have had a chance to subscribe
     return True

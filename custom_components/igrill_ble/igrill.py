@@ -2,6 +2,7 @@ from builtins import range
 from builtins import object
 import logging
 from collections.abc import Callable
+from typing import Optional, Union
 
 from bleak import BleakClient
 
@@ -10,10 +11,13 @@ from bleak_retry_connector import (
     establish_connection,
 )
 
+from homeassistant.components.bluetooth.models import BluetoothServiceInfoBleak
 from homeassistant.components.bluetooth.passive_update_processor import (
+    PassiveBluetoothDataUpdate,
     PassiveBluetoothEntityKey,
 )
 from homeassistant.core import callback
+from homeassistant.helpers.entity import DeviceInfo, EntityDescription
 from .const import SensorType
 import asyncio
 from bluetooth_sensor_state_data import BluetoothData
@@ -31,6 +35,8 @@ CONNECT_LOCK = asyncio.Lock()
 
 class UUIDS(object):
     FIRMWARE_VERSION = "64ac0001-4a4b-4b58-9f37-94d3c52ffdf7"
+    HARDWARE_REVISION = "00002a27-0000-1000-8000-00805f9b34fb"
+    MANUFACTURER_NAME = "00002a29-0000-1000-8000-00805f9b34fb"
 
     BATTERY_LEVEL = "00002A19-0000-1000-8000-00805F9B34FB"
 
@@ -89,6 +95,7 @@ class IDevicePeripheral(BluetoothData):
         self.bt_name = None
         self.address = None
         self.entity_data = {}
+        self.closed = False
 
         for probe_num in range(1, self.num_probes + 1):
             temp_char_name = "PROBE{}_TEMPERATURE".format(probe_num)
@@ -173,112 +180,117 @@ class IDevicePeripheral(BluetoothData):
         )
         self.update_listeners()
 
+    def update_battery_sensor(self, payload):
+        self.update_predefined_sensor(SensorLibrary.BATTERY__PERCENTAGE, payload[0])
+        self.update_listeners()
+
     async def close(self):
+        self.closed = True
         if self.connected:
             await self.client.disconnect()
 
     def get_data(self, key: PassiveBluetoothEntityKey):
         return self.entity_data[key].native_value
 
-    async def async_poll(self, ble_device: BLEDevice) -> SensorUpdate:
+    async def async_init(self, ble_device: BLEDevice) -> SensorUpdate:
         """
-        Poll the device to retrieve any values we can't get from passive listening.
+        Connect to the igrill, receive initial data and then set up listeners to update info async.
         """
-        self.bt_name = ble_device.name
-        self.address = ble_device.address
-        if not self.connected:
-            self.client = await establish_connection(
-                BleakClient, ble_device, ble_device.address
-            )
-            self.connected = True
-            self.client.set_disconnected_callback(
-                lambda device: self._on_disconnect(device)
-            )
-            await self.client.pair(protection_level=1)
-
-            # send app challenge (16 bytes) (must be wrapped in a bytearray)
-            challenge = bytes(b"\0" * 16)
-            await self.client.write_gatt_char(UUIDS.APP_CHALLENGE, challenge)
-
-            # Normally we'd have to perform some crypto operations:
-            #     Write a challenge (in this case 16 bytes of 0)
-            #     Read the value
-            #     Decrypt w/ the key
-            #     Check the first 8 bytes match our challenge
-            #     Set the first 8 bytes 0
-            #     Encrypt with the key
-            #     Send back the new value
-            # But wait!  Our first 8 bytes are already 0.  That means we don't need the key.
-            # We just hand back the same encrypted value we get and we're good.
-            encrypted_device_challenge = await self.client.read_gatt_char(
-                UUIDS.DEVICE_CHALLENGE
-            )
-            await self.client.write_gatt_char(
-                UUIDS.DEVICE_RESPONSE, encrypted_device_challenge
-            )
-
-            if not self.retrieved_device_info:
-                self.retrieved_device_info = True
-                self.set_device_manufacturer("Weber")
-                self.set_device_type(self.name)
-                payload = await self.client.read_gatt_char(UUIDS.FIRMWARE_VERSION)
-                self.set_device_sw_version(payload.rstrip(b"\x00").decode("utf-8"))
-            char_ids = {}
-            services = await self.client.get_services()
-            for char, probe_id in self.temp_chars.items():
-                char_ids[services.get_characteristic(char).handle] = probe_id
-                await self.client.start_notify(
-                    char,
-                    lambda handle, payload: self.update_temp_sensor(
-                        payload, f"probe_{char_ids[handle]}"
-                    ),
+        try:
+            self.bt_name = ble_device.name
+            self.address = ble_device.address
+            if not self.connected and not self.closed:
+                self.connected = True
+                self.client = await establish_connection(
+                    BleakClient, ble_device, ble_device.address
                 )
-                self.update_temp_sensor(
-                    await self.client.read_gatt_char(char), f"probe_{probe_id}"
+                self.client.set_disconnected_callback(
+                    lambda device: self._on_disconnect(device)
+                )
+                await self.client.pair(protection_level=1)
+
+                # send app challenge (16 bytes) (must be wrapped in a bytearray)
+                challenge = bytes(b"\0" * 16)
+                await self.client.write_gatt_char(UUIDS.APP_CHALLENGE, challenge)
+
+                # Normally we'd have to perform some crypto operations:
+                #     Write a challenge (in this case 16 bytes of 0)
+                #     Read the value
+                #     Decrypt w/ the key
+                #     Check the first 8 bytes match our challenge
+                #     Set the first 8 bytes 0
+                #     Encrypt with the key
+                #     Send back the new value
+                # But wait!  Our first 8 bytes are already 0.  That means we don't need the key.
+                # We just hand back the same encrypted value we get and we're good.
+                encrypted_device_challenge = await self.client.read_gatt_char(
+                    UUIDS.DEVICE_CHALLENGE
+                )
+                await self.client.write_gatt_char(
+                    UUIDS.DEVICE_RESPONSE, encrypted_device_challenge
                 )
 
-            if (await self.client.get_services()).get_characteristic(
-                UUIDS.AMBIENT_TEMPERATURE
-            ):
-                self.has_ambient_temp = True
-                await self.client.start_notify(
-                    UUIDS.AMBIENT_TEMPERATURE,
-                    lambda handle, payload: self.update_temp_sensor(
-                        payload, "ambient_temp"
-                    ),
-                )
-                self.update_temp_sensor(
-                    await self.client.read_gatt_char(UUIDS.AMBIENT_TEMPERATURE),
-                    "ambient_temp",
-                )
+                if not self.retrieved_device_info:
+                    self.retrieved_device_info = True
+                    self.set_device_manufacturer("Weber")
+                    self.set_device_type(self.name)
+                    payload = await self.client.read_gatt_char(UUIDS.FIRMWARE_VERSION)
+                    self.set_device_sw_version(payload.rstrip(b"\x00").decode("utf-8"))
+                char_ids = {}
+                services = await self.client.get_services()
+                for char, probe_id in self.temp_chars.items():
+                    char_ids[services.get_characteristic(char).handle] = probe_id
+                    await self.client.start_notify(
+                        char,
+                        lambda handle, payload: self.update_temp_sensor(
+                            payload, f"probe_{char_ids[handle]}"
+                        ),
+                    )
+                    self.update_temp_sensor(
+                        await self.client.read_gatt_char(char), f"probe_{probe_id}"
+                    )
 
-            if self.has_heating_element:
-                await self.client.start_notify(
-                    UUIDS.HEATING_ELEMENTS,
-                    lambda handle, payload: self.update_heating_sensor(payload),
-                )
-                await self.update_heating_sensor(
-                    self.client.read_gatt_char(UUIDS.HEATING_ELEMENTS),
-                )
-            if self.has_battery:
-                await self.client.start_notify(
-                    UUIDS.BATTERY_LEVEL,
-                    lambda handle, payload: self.update_predefined_sensor(
-                        SensorLibrary.BATTERY__PERCENTAGE, payload[0]
-                    ),
-                )
-                payload = await self.client.read_gatt_char(UUIDS.BATTERY_LEVEL)
-                self.update_predefined_sensor(
-                    SensorLibrary.BATTERY__PERCENTAGE, payload[0]
-                )
-            if self.has_propane:
-                await self.client.start_notify(
-                    UUIDS.PROPANE_LEVEL,
-                    lambda handle, payload: self.update_propane_sensor(payload),
-                )
-                self.update_propane_sensor(
-                    await self.client.read_gatt_char(UUIDS.PROPANE_LEVEL),
-                )
+                if (await self.client.get_services()).get_characteristic(
+                    UUIDS.AMBIENT_TEMPERATURE
+                ):
+                    self.has_ambient_temp = True
+                    await self.client.start_notify(
+                        UUIDS.AMBIENT_TEMPERATURE,
+                        lambda handle, payload: self.update_temp_sensor(
+                            payload, "ambient_temp"
+                        ),
+                    )
+                    self.update_temp_sensor(
+                        await self.client.read_gatt_char(UUIDS.AMBIENT_TEMPERATURE),
+                        "ambient_temp",
+                    )
+
+                if self.has_heating_element:
+                    await self.client.start_notify(
+                        UUIDS.HEATING_ELEMENTS,
+                        lambda handle, payload: self.update_heating_sensor(payload),
+                    )
+                    await self.update_heating_sensor(
+                        self.client.read_gatt_char(UUIDS.HEATING_ELEMENTS),
+                    )
+                if self.has_battery:
+                    await self.client.start_notify(
+                        UUIDS.BATTERY_LEVEL,
+                        lambda handle, payload: self.update_battery_sensor(payload),
+                    )
+                    payload = await self.client.read_gatt_char(UUIDS.BATTERY_LEVEL)
+                    self.update_battery_sensor(payload)
+                if self.has_propane:
+                    await self.client.start_notify(
+                        UUIDS.PROPANE_LEVEL,
+                        lambda handle, payload: self.update_propane_sensor(payload),
+                    )
+                    self.update_propane_sensor(
+                        await self.client.read_gatt_char(UUIDS.PROPANE_LEVEL),
+                    )
+        except Exception:
+            self.connected = False
+            raise
         return self._finish_update()
 
 
