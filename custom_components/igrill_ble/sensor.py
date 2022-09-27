@@ -228,4 +228,4 @@ class IGrillSensorEntity(
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return self.data.connected
+        return self.data.client and self.data.client.is_connected
