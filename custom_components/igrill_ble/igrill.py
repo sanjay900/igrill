@@ -223,16 +223,15 @@ class IDevicePeripheral(BluetoothData):
                 self.set_device_type(self.name)
                 payload = await self.client.read_gatt_char(UUIDS.FIRMWARE_VERSION)
                 self.set_device_sw_version(payload.rstrip(b"\x00").decode("utf-8"))
-            char_ids = {}
-            services = await self.client.get_services()
-            for char, probe_id in self.temp_chars.items():
-                char_ids[services.get_characteristic(char).handle] = probe_id
+            async def start_notify(name):
                 await self.client.start_notify(
                     char,
                     lambda handle, payload: self.update_temp_sensor(
-                        payload, f"probe_{char_ids[handle]}"
+                        payload, name
                     ),
                 )
+            for char, probe_id in self.temp_chars.items():
+                await start_notify(f"probe_{probe_id}")
                 self.update_temp_sensor(
                     await self.client.read_gatt_char(char), f"probe_{probe_id}"
                 )
