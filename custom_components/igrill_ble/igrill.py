@@ -184,6 +184,16 @@ class IDevicePeripheral(BluetoothData):
     def get_data(self, key: PassiveBluetoothEntityKey):
         return self.entity_data[key].native_value
 
+    async def start_notify_temp(self, char, name):
+        await self.client.start_notify(
+            char,
+            lambda handle, payload: self.update_temp_sensor(
+                payload, name
+            ),
+        )
+        self.update_temp_sensor(
+            await self.client.read_gatt_char(char), name
+        )
     async def async_init(self, ble_device: BLEDevice) -> SensorUpdate:
         """
         Connect to the igrill, receive initial data and then set up listeners to update info async.
@@ -223,18 +233,8 @@ class IDevicePeripheral(BluetoothData):
                 self.set_device_type(self.name)
                 payload = await self.client.read_gatt_char(UUIDS.FIRMWARE_VERSION)
                 self.set_device_sw_version(payload.rstrip(b"\x00").decode("utf-8"))
-            async def start_notify(name):
-                await self.client.start_notify(
-                    char,
-                    lambda handle, payload: self.update_temp_sensor(
-                        payload, name
-                    ),
-                )
             for char, probe_id in self.temp_chars.items():
-                await start_notify(f"probe_{probe_id}")
-                self.update_temp_sensor(
-                    await self.client.read_gatt_char(char), f"probe_{probe_id}"
-                )
+                await self.start_notify_temp(char, f"probe_{probe_id}")
 
             if (await self.client.get_services()).get_characteristic(
                 UUIDS.AMBIENT_TEMPERATURE
