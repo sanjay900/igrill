@@ -2,4 +2,4 @@
 
 ## Note:
 It has been noted the the following can help with pairing in some cases
-> Open up a terminal, ran bluetoothctl, scan on, pair <mac address>
+> Open up a terminal, ran bluetoothctl, scan on, pair <\<mac address\>>
